@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#243b23" />
+    <meta name="description" content="A private, browser-based PDF research assistant powered by Pinecone and NVIDIA." />
+    <title>Prag — Ask your library</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module"></script>
+    <script src="app.js" type="module"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar">
+        <a class="brand" href="#" aria-label="Prag home"><span class="brand-mark">p<span>.</span></span><span class="brand-name">prag</span></a>
+        <button class="new-chat" id="newChat"><span class="plus">＋</span> New conversation <span class="shortcut">⌘ K</span></button>
+        <div class="side-label">WORKSPACE</div>
+        <button class="side-item active" id="libraryNav"><span class="side-icon">▤</span> My library <span class="side-count" id="libraryCount">0</span></button>
+        <div class="side-label recent-label">RECENT</div>
+        <div class="recent-list" id="recentList"><div class="empty-recent">Your conversations will appear here.</div></div>
+        <div class="sidebar-spacer"></div>
+        <div class="privacy-note"><span class="privacy-dot"></span><span>Your keys stay in this browser session.</span></div>
+        <button class="profile" id="settingsOpen"><span class="avatar">M</span><span class="profile-copy"><strong>My workspace</strong><small>Configure connections</small></span><span class="profile-more">···</span></button>
+      </aside>
+      <main class="main-panel">
+        <header class="topbar"><button class="mobile-menu" id="mobileMenu" aria-label="Open menu">☰</button><div class="breadcrumb"><span>My library</span><span class="crumb-sep">/</span><strong id="topDbName">No database selected</strong></div><div class="top-actions"><span class="connection-pill"><i></i><span id="connectionText">Not connected</span></span><button class="settings-button" id="settingsOpenTop" aria-label="Settings">⚙</button></div></header>
+        <section class="chat-scroll" id="chatScroll">
+          <div class="welcome" id="welcome">
+            <div class="welcome-kicker"><span class="sparkle">✳</span> YOUR RESEARCH, IN CONVERSATION</div>
+            <h1>Good ideas start<br />with <em>good questions.</em></h1>
+            <p class="welcome-sub">Add a PDF or connect a Pinecone library. Prag will find the passages that matter and help you make sense of them.</p>
+            <div class="action-cards">
+              <button class="action-card upload-card" id="uploadCard"><span class="card-icon upload-icon">↑</span><span class="card-copy"><strong>Add a PDF</strong><small>Create a searchable library</small></span><span class="card-arrow">↗</span></button>
+              <button class="action-card connect-card" id="connectCard"><span class="card-icon db-icon">⌘</span><span class="card-copy"><strong>Open a library</strong><small>Connect an existing Pinecone index</small></span><span class="card-arrow">↗</span></button>
+            </div>
+            <div class="suggestions-label">A FEW THINGS YOU CAN ASK</div>
+            <div class="suggestions"><button class="suggestion">What are the main ideas?</button><button class="suggestion">Summarize the key findings</button><button class="suggestion">Compare the important sections</button></div>
+          </div>
+          <div class="messages" id="messages" aria-live="polite"></div>
+        </section>
+        <div class="composer-wrap">
+          <div class="active-library" id="activeLibrary" hidden><span class="library-glyph">▤</span><span>Searching <strong id="activeDbLabel"></strong></span><button id="clearDb" title="Disconnect library">×</button></div>
+          <form class="composer" id="chatForm"><button class="attach-button" id="attachButton" type="button" title="Add a PDF">＋</button><textarea id="questionInput" rows="1" placeholder="Ask a question about your documents…" aria-label="Ask a question"></textarea><span class="composer-hint">↵</span><button class="send-button" id="sendButton" type="submit" aria-label="Send message">↑</button></form>
+          <div class="composer-footer"><button class="db-inline" id="dbInline"><span>⌘</span> <span id="dbInlineText">Connect a database</span> <b>⌄</b></button><span>Answers grounded in your sources <span class="footer-leaf">✳</span></span></div>
+        </div>
+        <input type="file" id="pdfInput" accept="application/pdf,.pdf" hidden />
+      </main>
+    </div>
+    <div class="toast" id="toast" role="status"></div>
+    <dialog class="settings-dialog" id="settingsDialog"><form method="dialog"><div class="dialog-head"><div><div class="dialog-eyebrow">CONNECTIONS</div><h2>Set up your workspace</h2></div><button class="dialog-close" aria-label="Close">×</button></div><p class="dialog-intro">Credentials stay in this tab and are cleared when you close it. Add your keys to upload documents and ask questions.</p>
+      <label class="field-label" for="nvidiaKey">NVIDIA API key</label><input id="nvidiaKey" class="field" type="password" placeholder="nvapi-…" autocomplete="off" />
+      <label class="field-label" for="pineconeKey">Pinecone API key</label><input id="pineconeKey" class="field" type="password" placeholder="Your Pinecone API key" autocomplete="off" />
+      <div class="field-row"><div><label class="field-label" for="pineconeHost">Index host <span class="optional">(for existing index)</span></label><input id="pineconeHost" class="field" placeholder="your-index-xxxx.svc…pinecone.io" autocomplete="off" /></div><div><label class="field-label" for="namespace">Namespace</label><input id="namespace" class="field" placeholder="default" autocomplete="off" /></div></div>
+      <div class="secure-note"><span>◈</span><span>We connect directly from this page. Prag never sends your keys to a server.</span></div><button class="save-settings" id="saveSettings" value="save">Save connections</button>
+    </form></dialog>
+    <dialog class="library-dialog" id="libraryDialog"><form method="dialog"><div class="dialog-head"><div><div class="dialog-eyebrow">PINECONE LIBRARY</div><h2 id="libraryTitle">Connect a library</h2></div><button class="dialog-close" aria-label="Close">×</button></div><p class="dialog-intro" id="libraryDescription">Type an existing index name to connect, or choose a name for a new library.</p><label class="field-label" for="indexName">Index name</label><input id="indexName" class="field" placeholder="e.g. research-papers" autocomplete="off" /><div class="index-help" id="indexHelp">New indexes use 1,024 dimensions, cosine similarity, and AWS us-east-1.</div><div class="index-error" id="indexError"></div><button class="save-settings" id="librarySubmit" value="connect">Connect existing index</button><button class="mode-switch" id="libraryMode" type="button">Create a new library from a PDF instead →</button></form></dialog>
+    <dialog class="upload-dialog" id="uploadDialog"><form method="dialog"><div class="dialog-head"><div><div class="dialog-eyebrow">NEW LIBRARY</div><h2>Add a PDF</h2></div><button class="dialog-close" aria-label="Close">×</button></div><p class="dialog-intro">Choose a PDF and name the Pinecone index where its searchable chunks will be stored.</p><button class="file-drop" id="fileDrop" type="button"><span class="file-icon">↑</span><strong id="fileName">Choose a PDF to upload</strong><small>PDF format · select one file at a time</small></button><label class="field-label" for="uploadIndexName">New Pinecone index name</label><input id="uploadIndexName" class="field" placeholder="e.g. research-papers" autocomplete="off" /><div class="index-help">Creates a 1,024-dimensional cosine index in AWS us-east-1 when needed.</div><div class="upload-progress" id="uploadProgress" hidden><div class="progress-track"><span id="progressFill"></span></div><span id="progressText">Preparing PDF…</span></div><div class="index-error" id="uploadError"></div><button class="save-settings" id="startUpload" type="button">Process PDF &amp; create library</button></form></dialog>
+  </body>
+</html>
