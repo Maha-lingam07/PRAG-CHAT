@@ -49,12 +49,10 @@
       </main>
     </div>
     <div class="toast" id="toast" role="status"></div>
-    <dialog class="settings-dialog" id="settingsDialog"><form method="dialog"><div class="dialog-head"><div><div class="dialog-eyebrow">CONNECTIONS</div><h2>API settings</h2></div><button class="dialog-close" aria-label="Close">×</button></div>
-      <label class="field-label" for="nvidiaKey">NVIDIA API key</label><input id="nvidiaKey" class="field" type="password" placeholder="nvapi-…" autocomplete="off" />
-      <label class="field-label" for="pineconeKey">Pinecone API key</label><input id="pineconeKey" class="field" type="password" placeholder="Pinecone API key" autocomplete="off" />
-      <label class="field-label" for="pineconeHost">Index host <span class="optional">(optional)</span></label><input id="pineconeHost" class="field" placeholder="Index host is looked up by name" autocomplete="off" />
-      <label class="field-label" for="namespace">Namespace <span class="optional">(optional)</span></label><input id="namespace" class="field" placeholder="Leave blank for default" autocomplete="off" />
-      <button class="save-settings" id="saveSettings" value="save">Save</button>
+    <dialog class="settings-dialog" id="settingsDialog"><form method="dialog"><div class="dialog-head"><div><div class="dialog-eyebrow">BACKEND</div><h2>Connection status</h2></div><button class="dialog-close" aria-label="Close">×</button></div>
+      <p id="backendStatus" class="backend-status">Checking backend…</p>
+      <label class="field-label" for="namespace">Pinecone namespace <span class="optional">(optional)</span></label><input id="namespace" class="field" placeholder="Defaults to database name" autocomplete="off" />
+      <button class="save-settings" id="saveSettings" value="save">Save namespace</button>
     </form></dialog>
   </body>
 </html>
