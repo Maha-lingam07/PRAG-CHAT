@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
+import sys
+import tempfile
 import threading
 import time
 import uuid
@@ -36,6 +39,7 @@ app = FastAPI(title="PRAG API", docs_url=None, redoc_url=None)
 _embedding_model = None
 _embedding_device: str | None = None
 _embedding_lock = threading.Lock()
+_ml_packages = Path(tempfile.gettempdir()) / "prag-ml-packages"
 
 
 class DatabaseRequest(BaseModel):
@@ -157,6 +161,37 @@ def pinecone_data_request(host: str, path: str, body: dict[str, Any]) -> dict[st
     return response.json()
 
 
+def load_embedding_runtime():
+    """Install the heavyweight ML stack on first embedding use, not at Render build/start."""
+    try:
+        import torch
+        from sentence_transformers import SentenceTransformer
+
+        return torch, SentenceTransformer
+    except ImportError:
+        pass
+
+    _ml_packages.mkdir(parents=True, exist_ok=True)
+    result = subprocess.run(
+        [
+            sys.executable, "-m", "pip", "install", "--disable-pip-version-check",
+            "--no-warn-script-location", "--target", str(_ml_packages),
+            "-r", str(BASE_DIR / "ml-requirements.txt"),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=900,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise RuntimeError("Could not install the embedding runtime. Check outbound network access and available disk space.")
+    sys.path.insert(0, str(_ml_packages))
+    import torch
+    from sentence_transformers import SentenceTransformer
+
+    return torch, SentenceTransformer
+
+
 def embed(texts: list[str]) -> list[list[float]]:
     """Match the notebook: BGE large v1.5, L2-normalized embeddings."""
     global _embedding_model, _embedding_device
@@ -164,8 +199,7 @@ def embed(texts: list[str]) -> list[list[float]]:
         with _embedding_lock:
             if _embedding_model is None:
                 try:
-                    import torch
-                    from sentence_transformers import SentenceTransformer
+                    torch, SentenceTransformer = load_embedding_runtime()
 
                     requested_device = EMBEDDING_DEVICE.lower() or "auto"
                     if requested_device == "auto":

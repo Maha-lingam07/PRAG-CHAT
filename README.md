@@ -23,7 +23,7 @@ NVIDIA_API_KEY=your_nvidia_key
 PINECONE_API_KEY=your_pinecone_key
 ```
 
-The model is not loaded when the server starts or when its health check runs. It downloads and initializes lazily the first time an upload or question needs embeddings, then stays in memory for that server process. The model produces normalized 1,024-dimensional vectors, matching the notebook's embedding setup. `EMBEDDING_DEVICE=auto` chooses CUDA when PyTorch detects an NVIDIA GPU, Apple MPS when available, and otherwise CPU. If you explicitly set `cuda` but CUDA is unavailable, the app falls back to CPU. A Render restart clears the in-memory model, so the next embedding request may need to load it again.
+The server and health check do not install PyTorch or load BGE. The large ML dependencies are in `ml-requirements.txt` and install lazily the first time an upload or question needs embeddings. Merely loading an existing Pinecone index does not install or load them. Asking a question does need BGE to embed the query, so after a fresh deploy or restart the first question can trigger the install and model download too. The model produces normalized 1,024-dimensional vectors, matching the notebook's embedding setup. `EMBEDDING_DEVICE=auto` chooses CUDA when PyTorch detects an NVIDIA GPU, Apple MPS when available, and otherwise CPU. If you explicitly set `cuda` but CUDA is unavailable, the app falls back to CPU. Once loaded, the model stays in memory for that server process.
 
 Back in Command Prompt, start the server:
 
@@ -41,7 +41,7 @@ Scanned PDFs need OCR and are not supported yet.
 
 This repository includes `render.yaml` for a Render web service. In Render, create a new Blueprint from the GitHub repository and set `NVIDIA_API_KEY` and `PINECONE_API_KEY` in the service environment. The Blueprint binds to Render's `$PORT` and exposes `/api/health` as its health check. Keep the keys in Render's environment settings; do not commit a `.env` file.
 
-Choose an instance with enough memory for PyTorch and BGE Large. Render's free web service has 512 MB RAM, which is not enough for this local embedding model. Render's documented web-service plans list CPU and memory resources and do not list GPU instances, so `auto` will use CPU there. You can still run the same app on a GPU-enabled host, where `auto` selects CUDA. Render free services also spin down after inactivity, so the first request after idle can be slow.
+Choose an instance with enough memory and disk for PyTorch and BGE Large. Render's free web service has 512 MB RAM, which is not enough for this local embedding model. Render's documented web-service plans list CPU and memory resources and do not list GPU instances, so `auto` will use CPU there. You can still run the same app on a GPU-enabled host, where `auto` selects CUDA. Render free services also spin down after inactivity, so the first embedding request after a restart may need to install the ML stack and load BGE again.
 
 ## Palette
 
