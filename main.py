@@ -22,7 +22,8 @@ load_dotenv(BASE_DIR / ".env")
 
 NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "").strip()
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY", "").strip()
-NVIDIA_EMBEDDING_MODEL = os.getenv("NVIDIA_EMBEDDING_MODEL", "nvidia/nv-embedqa-e5-v5")
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-large-en-v1.5")
+EMBEDDING_DEVICE = os.getenv("EMBEDDING_DEVICE", "auto").strip()
 NVIDIA_CHAT_MODEL = os.getenv("NVIDIA_CHAT_MODEL", "nvidia/nemotron-3-ultra-550b-a55b")
 PINECONE_CLOUD = os.getenv("PINECONE_CLOUD", "aws")
 PINECONE_REGION = os.getenv("PINECONE_REGION", "us-east-1")
@@ -31,6 +32,7 @@ EMBEDDING_DIMENSION = 1024
 MAX_PDF_BYTES = 25 * 1024 * 1024
 
 app = FastAPI(title="PRAG API", docs_url=None, redoc_url=None)
+_embedding_model = None
 
 
 class DatabaseRequest(BaseModel):
@@ -152,21 +154,32 @@ def pinecone_data_request(host: str, path: str, body: dict[str, Any]) -> dict[st
     return response.json()
 
 
-def embed(texts: list[str], input_type: str) -> list[list[float]]:
-    require_keys(nvidia=True, pinecone=False)
-    response = requests.post(
-        "https://integrate.api.nvidia.com/v1/embeddings",
-        headers={"Authorization": f"Bearer {NVIDIA_API_KEY}", "Content-Type": "application/json"},
-        json={"input": texts, "model": NVIDIA_EMBEDDING_MODEL, "input_type": input_type, "encoding_format": "float"},
-        timeout=120,
-    )
-    if not response.ok:
-        raise upstream_error(response, "NVIDIA")
-    data = response.json().get("data", [])
-    data.sort(key=lambda item: item.get("index", 0))
-    vectors = [item.get("embedding") for item in data]
-    if len(vectors) != len(texts) or any(not vector or len(vector) != EMBEDDING_DIMENSION for vector in vectors):
-        raise HTTPException(status_code=502, detail="NVIDIA returned an unexpected embedding size.")
+def embed(texts: list[str]) -> list[list[float]]:
+    """Match the notebook: BGE large v1.5, L2-normalized embeddings."""
+    global _embedding_model
+    if _embedding_model is None:
+        try:
+            from sentence_transformers import SentenceTransformer
+
+            device = None if not EMBEDDING_DEVICE or EMBEDDING_DEVICE.lower() == "auto" else EMBEDDING_DEVICE
+            _embedding_model = SentenceTransformer(EMBEDDING_MODEL, device=device)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Could not load embedding model {EMBEDDING_MODEL}. Check the installation and model download, then restart the server.",
+            ) from exc
+    try:
+        encoded = _embedding_model.encode(
+            texts,
+            normalize_embeddings=True,
+            convert_to_numpy=True,
+            show_progress_bar=False,
+        )
+        vectors = encoded.tolist()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Embedding failed with {EMBEDDING_MODEL}.") from exc
+    if len(vectors) != len(texts) or any(len(vector) != EMBEDDING_DIMENSION for vector in vectors):
+        raise HTTPException(status_code=502, detail="Embedding model returned an unexpected vector size.")
     return vectors
 
 
@@ -256,12 +269,17 @@ def upload_pdf(
     upload_id = uuid.uuid4().hex[:12]
     for start in range(0, len(chunks), 24):
         batch = chunks[start:start + 24]
-        vectors = embed([chunk["text"] for chunk in batch], "passage")
+        vectors = embed([chunk["text"] for chunk in batch])
         records = [
             {
                 "id": f"{upload_id}-p{chunk['page']}-c{start + offset}",
                 "values": vectors[offset],
-                "metadata": {"text": chunk["text"], "page": chunk["page"], "filename": file_name},
+                "metadata": {
+                    "text": chunk["text"],
+                    "page": chunk["page"],
+                    "filename": file_name,
+                    "embedding_model": EMBEDDING_MODEL,
+                },
             }
             for offset, chunk in enumerate(batch)
         ]
@@ -276,7 +294,7 @@ def chat(payload: ChatRequest) -> dict[str, Any]:
     index_name = validate_index_name(payload.index_name)
     index = get_index(index_name)
     namespace = effective_namespace(payload.namespace, index_name)
-    query_vector = embed([payload.question.strip()], "query")[0]
+    query_vector = embed([payload.question.strip()])[0]
     result = pinecone_data_request(index["host"], "/query", {
         "vector": query_vector,
         "topK": 6,
@@ -284,6 +302,17 @@ def chat(payload: ChatRequest) -> dict[str, Any]:
         "namespace": namespace,
     })
     matches = result.get("matches", [])
+    model_mismatch = next((
+        match.get("metadata", {}).get("embedding_model")
+        for match in matches
+        if match.get("metadata", {}).get("embedding_model")
+        and match["metadata"]["embedding_model"] != EMBEDDING_MODEL
+    ), None)
+    if model_mismatch:
+        raise HTTPException(
+            status_code=409,
+            detail=f"This database contains vectors from {model_mismatch}; re-embed those documents with {EMBEDDING_MODEL} first.",
+        )
     sources = [
         {"text": match.get("metadata", {}).get("text", ""), "page": match.get("metadata", {}).get("page")}
         for match in matches
