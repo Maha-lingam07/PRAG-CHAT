@@ -2,35 +2,38 @@
 
 **A Self-Healing RAG system**
 
-PRAG is a PDF chat app with a lightweight FastAPI backend. Python extracts PDF text, creates NVIDIA embeddings, stores and retrieves passages in Pinecone, then asks NVIDIA to answer from the retrieved context with source pages.
+PRAG is a PDF chat app with a small FastAPI backend. Python extracts PDF text, creates NVIDIA embeddings, stores and retrieves passages in Pinecone, and asks NVIDIA to answer with source page references.
 
-## Run locally
+## Run from Windows Command Prompt
 
-Use Python 3.10 or newer. From the project folder, create a virtual environment and install dependencies:
+In the project folder, run:
 
-```powershell
+```bat
 py -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-Copy-Item .env.example .env
+.venv\Scripts\activate.bat
+python -m pip install -r requirements.txt
+copy .env.example .env
+notepad .env
 ```
 
-Add your NVIDIA and Pinecone keys to `.env`:
+Put your real keys in `.env` and save it:
 
 ```dotenv
 NVIDIA_API_KEY=your_nvidia_key
 PINECONE_API_KEY=your_pinecone_key
 ```
 
-Start the app and open [http://127.0.0.1:8000](http://127.0.0.1:8000):
+Back in Command Prompt, start the server:
 
-```powershell
-uvicorn main:app --reload
+```bat
+python -m uvicorn main:app --reload
 ```
 
-Choose a PDF, enter a vector database name, and click **Upload PDF**. PRAG creates the Pinecone index when needed (1,024 dimensions, cosine metric, AWS `us-east-1` by default) and uploads extracted passages. Enter an existing index in the lower field and click **Load database** to connect. The gear icon shows backend configuration and lets you set a Pinecone namespace; if blank, the index name is used as the namespace.
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000). Choose a PDF, enter a vector database name, and click **Upload PDF**. To connect to an existing index, enter its name in the lower field and click **Load database**. The gear icon shows whether the backend found both keys in `.env` and lets you set a Pinecone namespace.
 
-The `.env` file is ignored by Git. The server only serves the app's HTML, JavaScript, and CSS files, so `.env` and Python files are not exposed as static files. API keys stay on the Python server and are never returned to the browser. Scanned PDFs need OCR and are not supported yet.
+The app creates a new index with 1,024 dimensions and cosine similarity in AWS `us-east-1` by default. It uses the index name as the Pinecone namespace unless you set a custom one. `.env` is ignored by Git, and the server only serves `index.html`, `app.js`, and `styles.css`; it does not serve `.env` or Python files.
+
+Scanned PDFs need OCR and are not supported yet.
 
 ## Palette
 

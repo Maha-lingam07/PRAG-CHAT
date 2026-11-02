@@ -1,5 +1,3 @@
-import { createIcons, Settings, FileUp, ArrowUp, BookOpen, X } from 'https://cdn.jsdelivr.net/npm/lucide@0.468.0/dist/esm/lucide.js';
-
 const $ = (s) => document.querySelector(s);
 const ui = { settings: $('#settingsDialog'), question: $('#questionInput'), messages: $('#messages'), toast: $('#toast'), pdf: $('#pdfInput') };
 const state = { index: '', namespace: '', busy: false };
@@ -102,6 +100,4 @@ $('#chatForm').addEventListener('submit', e => { e.preventDefault(); const quest
 ui.question.addEventListener('input', () => { ui.question.style.height = 'auto'; ui.question.style.height = `${Math.min(ui.question.scrollHeight, 145)}px`; });
 ui.question.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#chatForm').requestSubmit(); } });
 $('#clearDb').addEventListener('click', () => { state.index = ''; state.namespace = ''; $('#activeLibrary').hidden = true; });
-updateConnectionState();
-function updateConnectionState() { refreshBackendStatus(); }
-createIcons({ icons: { Settings, FileUp, ArrowUp, BookOpen, X } });
+refreshBackendStatus();
