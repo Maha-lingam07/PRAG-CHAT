@@ -23,7 +23,7 @@ NVIDIA_API_KEY=your_nvidia_key
 PINECONE_API_KEY=your_pinecone_key
 ```
 
-The first PDF upload or question downloads and initializes the BGE model on the backend. The model produces normalized 1,024-dimensional vectors, matching the notebook's embedding setup. Set `EMBEDDING_DEVICE=cuda` in `.env` to request CUDA; `auto` uses the available default device. The BGE model and its PyTorch runtime are larger than the FastAPI server itself, so the first dependency install and model download take longer.
+The model is not loaded when the server starts or when its health check runs. It downloads and initializes lazily the first time an upload or question needs embeddings, then stays in memory for that server process. The model produces normalized 1,024-dimensional vectors, matching the notebook's embedding setup. `EMBEDDING_DEVICE=auto` chooses CUDA when PyTorch detects an NVIDIA GPU, Apple MPS when available, and otherwise CPU. If you explicitly set `cuda` but CUDA is unavailable, the app falls back to CPU. A Render restart clears the in-memory model, so the next embedding request may need to load it again.
 
 Back in Command Prompt, start the server:
 
@@ -36,6 +36,12 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000). Choose a PDF, enter a vecto
 The app creates a new index with 1,024 dimensions and cosine similarity in AWS `us-east-1` by default. It uses the index name as the Pinecone namespace unless you set a custom one. Keep the embedding model consistent within each index. Existing indexes populated by the original notebook's BGE embeddings are compatible. If you populated an index with the earlier PRAG version's NVIDIA embeddings, create a fresh index and upload the PDF again before querying it with BGE. `.env` is ignored by Git, and the server only serves `index.html`, `app.js`, and `styles.css`; it does not serve `.env` or Python files.
 
 Scanned PDFs need OCR and are not supported yet.
+
+## Deploy on Render
+
+This repository includes `render.yaml` for a Render web service. In Render, create a new Blueprint from the GitHub repository and set `NVIDIA_API_KEY` and `PINECONE_API_KEY` in the service environment. The Blueprint binds to Render's `$PORT` and exposes `/api/health` as its health check. Keep the keys in Render's environment settings; do not commit a `.env` file.
+
+Choose an instance with enough memory for PyTorch and BGE Large. Render's free web service has 512 MB RAM, which is not enough for this local embedding model. Render's documented web-service plans list CPU and memory resources and do not list GPU instances, so `auto` will use CPU there. You can still run the same app on a GPU-enabled host, where `auto` selects CUDA. Render free services also spin down after inactivity, so the first request after idle can be slow.
 
 ## Palette
 

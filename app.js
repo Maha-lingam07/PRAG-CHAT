@@ -42,7 +42,7 @@ async function refreshBackendStatus() {
     const missing = [];
     if (!health.nvidia_configured) missing.push('NVIDIA_API_KEY');
     if (!health.pinecone_configured) missing.push('PINECONE_API_KEY');
-    $('#backendStatus').textContent = missing.length ? `Add ${missing.join(' and ')} to .env, then restart the server.` : 'Python backend is connected. Provider keys are loaded from .env.';
+    $('#backendStatus').textContent = missing.length ? `Add ${missing.join(' and ')} to the service environment, then restart it.` : 'Python backend is connected. Provider keys are configured.';
     $('#connectionState').classList.toggle('connected', missing.length === 0);
   } catch (e) {
     $('#backendStatus').textContent = e.message;

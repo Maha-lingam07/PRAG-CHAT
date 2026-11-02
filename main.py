@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import threading
 import time
 import uuid
 from io import BytesIO
@@ -33,6 +34,8 @@ MAX_PDF_BYTES = 25 * 1024 * 1024
 
 app = FastAPI(title="PRAG API", docs_url=None, redoc_url=None)
 _embedding_model = None
+_embedding_device: str | None = None
+_embedding_lock = threading.Lock()
 
 
 class DatabaseRequest(BaseModel):
@@ -51,7 +54,7 @@ def require_keys(*, nvidia: bool = True, pinecone: bool = True) -> None:
     if pinecone and not PINECONE_API_KEY:
         missing.append("PINECONE_API_KEY")
     if missing:
-        raise HTTPException(status_code=503, detail=f"Add {', '.join(missing)} to .env and restart the server.")
+        raise HTTPException(status_code=503, detail=f"Add {', '.join(missing)} to the service environment and restart it.")
 
 
 def validate_index_name(name: str) -> str:
@@ -156,18 +159,32 @@ def pinecone_data_request(host: str, path: str, body: dict[str, Any]) -> dict[st
 
 def embed(texts: list[str]) -> list[list[float]]:
     """Match the notebook: BGE large v1.5, L2-normalized embeddings."""
-    global _embedding_model
+    global _embedding_model, _embedding_device
     if _embedding_model is None:
-        try:
-            from sentence_transformers import SentenceTransformer
+        with _embedding_lock:
+            if _embedding_model is None:
+                try:
+                    import torch
+                    from sentence_transformers import SentenceTransformer
 
-            device = None if not EMBEDDING_DEVICE or EMBEDDING_DEVICE.lower() == "auto" else EMBEDDING_DEVICE
-            _embedding_model = SentenceTransformer(EMBEDDING_MODEL, device=device)
-        except Exception as exc:
-            raise HTTPException(
-                status_code=503,
-                detail=f"Could not load embedding model {EMBEDDING_MODEL}. Check the installation and model download, then restart the server.",
-            ) from exc
+                    requested_device = EMBEDDING_DEVICE.lower() or "auto"
+                    if requested_device == "auto":
+                        if torch.cuda.is_available():
+                            _embedding_device = "cuda"
+                        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                            _embedding_device = "mps"
+                        else:
+                            _embedding_device = "cpu"
+                    elif requested_device == "cuda" and not torch.cuda.is_available():
+                        _embedding_device = "cpu"
+                    else:
+                        _embedding_device = EMBEDDING_DEVICE
+                    _embedding_model = SentenceTransformer(EMBEDDING_MODEL, device=_embedding_device)
+                except Exception as exc:
+                    raise HTTPException(
+                        status_code=503,
+                        detail=f"Could not load embedding model {EMBEDDING_MODEL}. Check the installation, available memory, and model download.",
+                    ) from exc
     try:
         encoded = _embedding_model.encode(
             texts,
@@ -233,6 +250,8 @@ def health() -> dict[str, Any]:
         "status": "ok",
         "nvidia_configured": bool(NVIDIA_API_KEY),
         "pinecone_configured": bool(PINECONE_API_KEY),
+        "embedding_loaded": _embedding_model is not None,
+        "embedding_device": _embedding_device,
     }
 
 
